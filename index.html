@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SwiftCredit — WhatsApp Journey Prototype</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --wa-bg: #e5ddd5;
+    --wa-bg-pattern: #d9d0c6;
+    --wa-header: #075e54;
+    --wa-header-2: #128c7e;
+    --wa-bubble-in: #ffffff;
+    --wa-bubble-out: #dcf8c6;
+    --wa-text: #303030;
+    --wa-text-muted: #667781;
+    --wa-link: #027eb5;
+    --wa-tick: #53bdeb;
+    --panel-bg: #f5f5f2;
+    --ink: #1a1a1a;
+    --ink-2: #555;
+    --ink-3: #8a8a85;
+    --accent: #0f6e56;
+    --accent-fill: #e1f5ee;
+    --line: rgba(0,0,0,0.08);
+  }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    background: var(--panel-bg);
+    color: var(--ink);
+    line-height: 1.5;
+    font-size: 15px;
+    min-height: 100vh;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 24px;
+    align-items: start;
+    justify-content: center;
+  }
+
+  /* Left narration panel */
+  .side-panel {
+    background: white;
+    border-radius: 14px;
+    padding: 24px;
+    border: 0.5px solid var(--line);
+    position: sticky; top: 24px;
+  }
+  .side-panel h2 {
+    font-size: 18px; font-weight: 600; margin-bottom: 8px;
+  }
+  .side-panel p {
+    color: var(--ink-2); font-size: 14px; margin-bottom: 16px;
+  }
+  .stage-list {
+    list-style: none; margin-top: 20px;
+  }
+  .stage-list li {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 0;
+    border-top: 0.5px solid var(--line);
+    font-size: 13px;
+  }
+  .stage-list li:first-child { border-top: none; }
+  .stage-num {
+    flex-shrink: 0;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #f0ede7; border: 0.5px solid rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 500;
+    color: var(--ink-2);
+  }
+  .stage-list li.active .stage-num {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .stage-list li.done .stage-num {
+    background: var(--accent-fill); color: var(--accent);
+  }
+  .stage-list li.done .stage-num::after { content: '✓'; font-size: 10px; }
+  .stage-list li.done .stage-num .n { display: none; }
+  .stage-label { color: var(--ink); font-weight: 500; }
+  .stage-note { color: var(--ink-3); font-size: 12px; margin-top: 2px; display: block; }
+
+  /* Phone frame */
+  .phone-wrap {
+    display: flex; justify-content: center;
+  }
+  .phone {
+    width: 360px;
+    height: 740px;
+    background: #000;
+    border-radius: 44px;
+    padding: 10px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25), inset 0 0 0 2px #2a2a2a;
+    position: relative;
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 18px; left: 50%; transform: translateX(-50%);
+    width: 100px; height: 24px;
+    background: #000; border-radius: 14px;
+    z-index: 3;
+  }
+  .screen {
+    width: 100%; height: 100%;
+    background: var(--wa-bg);
+    background-image: 
+      radial-gradient(circle at 10% 20%, var(--wa-bg-pattern) 1px, transparent 1.5px),
+      radial-gradient(circle at 70% 60%, var(--wa-bg-pattern) 1px, transparent 1.5px),
+      radial-gradient(circle at 40% 80%, var(--wa-bg-pattern) 1px, transparent 1.5px);
+    background-size: 30px 30px, 40px 40px, 50px 50px;
+    border-radius: 34px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+
+  /* WhatsApp header */
+  .wa-header {
+    background: var(--wa-header);
+    color: white;
+    padding: 42px 12px 10px 12px;
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+  }
+  .wa-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--wa-header-2); color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 14px;
+  }
+  .wa-title { font-weight: 500; font-size: 15px; display: flex; align-items: center; gap: 5px; }
+  .wa-sub { font-size: 12px; opacity: 0.85; margin-top: 1px; }
+  .wa-verified {
+    display: inline-block;
+    width: 12px; height: 12px;
+    background: white; color: var(--wa-header);
+    border-radius: 50%; font-size: 8px; font-weight: 900;
+    line-height: 12px; text-align: center;
+  }
+
+  /* Messages area */
+  .wa-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 8px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .wa-messages::-webkit-scrollbar { width: 0; }
+
+  .wa-date-chip {
+    align-self: center;
+    background: rgba(225, 245, 254, 0.92);
+    color: var(--wa-text-muted);
+    font-size: 12px; padding: 5px 10px;
+    border-radius: 8px;
+    margin: 8px 0;
+  }
+
+  .bubble {
+    max-width: 82%;
+    padding: 7px 10px 8px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--wa-text);
+    position: relative;
+    line-height: 1.35;
+    word-wrap: break-word;
+    animation: pop 0.2s ease-out;
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .bubble.in {
+    align-self: flex-start;
+    background: var(--wa-bubble-in);
+    border-bottom-left-radius: 2px;
+  }
+  .bubble.out {
+    align-self: flex-end;
+    background: var(--wa-bubble-out);
+    border-bottom-right-radius: 2px;
+  }
+  .bubble .time {
+    font-size: 10px; color: var(--wa-text-muted);
+    float: right; margin-left: 10px; margin-top: 4px;
+  }
+  .bubble .time.out::after {
+    content: ' ✓✓';
+    color: var(--wa-tick);
+    font-weight: 700;
+  }
+  .bubble strong { font-weight: 600; }
+
+  /* Buttons inside bubble (quick replies) */
+  .wa-buttons {
+    align-self: flex-start;
+    display: flex; flex-direction: column; gap: 2px;
+    width: 82%;
+    margin-top: 2px;
+  }
+  .wa-btn {
+    background: var(--wa-bubble-in);
+    border: none;
+    padding: 10px;
+    font-size: 14px;
+    color: var(--wa-link);
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    text-align: center;
+    transition: background 0.12s;
+  }
+  .wa-btn:hover { background: #f5f5f5; }
+  .wa-btn:active { transform: scale(0.99); }
+
+  /* List message (native WA list picker) */
+  .wa-list-btn {
+    background: var(--wa-bubble-in);
+    border: none;
+    padding: 10px;
+    font-size: 14px;
+    color: var(--wa-link);
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: background 0.12s;
+  }
+  .wa-list-btn::before {
+    content: ''; display: inline-block;
+    width: 12px; height: 12px;
+    border-left: 2px solid var(--wa-link);
+    border-bottom: 2px solid var(--wa-link);
+    transform: rotate(-45deg) translateY(-2px);
+  }
+
+  /* Link preview card */
+  .link-card {
+    align-self: flex-start;
+    background: var(--wa-bubble-in);
+    border-radius: 8px;
+    border-bottom-left-radius: 2px;
+    max-width: 82%;
+    min-height: 120px;
+    animation: pop 0.2s ease-out;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    display: block;
+    margin: 3px 0;
+  }
+  .link-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .link-preview {
+    background: #f0ede7;
+    padding: 10px;
+    border-left: 4px solid var(--accent);
+    display: flex; gap: 10px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 8px;
+  }
+  .link-preview-icon {
+    width: 42px; height: 42px; flex-shrink: 0;
+    background: var(--accent); color: white;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .link-preview-icon svg { width: 22px; height: 22px; }
+  .link-preview-text { flex: 1; min-width: 0; }
+  .link-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+  .link-desc { font-size: 12px; color: var(--wa-text-muted); margin-top: 1px; }
+  .link-url {
+    font-size: 11px; color: var(--wa-link);
+    margin-top: 4px;
+    text-decoration: underline;
+  }
+  .link-card-body { padding: 8px 10px 4px; font-size: 14px; color: var(--wa-text); }
+  .link-cta {
+    display: block;
+    margin: 6px 10px 10px;
+    padding: 10px;
+    background: var(--accent);
+    color: white !important;
+    text-align: center;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .link-card:hover .link-cta { background: #04342c; }
+  .link-card-time { font-size: 10px; color: var(--wa-text-muted); text-align: right; padding: 0 10px 6px; }
+  .tap-hint {
+    align-self: flex-start;
+    font-size: 11px;
+    color: var(--wa-text-muted);
+    margin: -2px 0 4px 10px;
+    font-style: italic;
+    animation: fadePulse 2s ease-in-out infinite;
+  }
+  @keyframes fadePulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* Typing indicator */
+  .typing {
+    align-self: flex-start;
+    background: var(--wa-bubble-in);
+    padding: 10px 14px;
+    border-radius: 8px;
+    border-bottom-left-radius: 2px;
+    display: flex; gap: 3px;
+  }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #b0b0b0;
+    animation: typingBounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typingBounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+    40% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* Input bar */
+  .wa-input {
+    background: #f0f0f0;
+    padding: 6px 8px;
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0;
+  }
+  .wa-input-field {
+    flex: 1;
+    background: white;
+    border-radius: 20px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--wa-text-muted);
+    min-height: 36px;
+    display: flex; align-items: center;
+  }
+  .wa-input-mic {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--wa-header-2); color: white;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 18px;
+  }
+  .wa-input-mic svg { width: 18px; height: 18px; }
+
+  /* Inline "webview" overlay */
+  .webview {
+    position: absolute;
+    inset: 0;
+    background: white;
+    border-radius: 34px;
+    z-index: 10;
+    display: none;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+  }
+  .webview.show { display: flex; }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .webview-header {
+    padding: 42px 16px 14px;
+    background: var(--accent);
+    color: white;
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0;
+  }
+  .webview-close {
+    font-size: 22px; line-height: 1;
+    cursor: pointer; opacity: 0.9;
+    background: transparent; border: none; color: white;
+  }
+  .webview-title { font-size: 15px; font-weight: 500; }
+  .webview-body {
+    flex: 1;
+    padding: 24px 20px;
+    overflow-y: auto;
+    background: #fafafa;
+  }
+  .webview-body h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .webview-body p { color: var(--ink-2); font-size: 14px; margin-bottom: 20px; }
+
+  .selfie-circle {
+    width: 220px; height: 220px;
+    margin: 10px auto 24px;
+    border: 2px dashed rgba(0,0,0,0.15);
+    border-radius: 50%;
+    background: #f5f5f2;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s;
+  }
+  .selfie-circle.scanning {
+    border-color: var(--accent);
+    animation: pulseRing 1.5s ease-in-out infinite;
+  }
+  .selfie-circle.done {
+    background: var(--accent-fill);
+    border: 2px solid var(--accent);
+  }
+  .selfie-circle svg { width: 80px; height: 80px; color: #8a8a85; }
+  .selfie-circle.done svg { color: var(--accent); }
+  @keyframes pulseRing {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(15, 110, 86, 0.25); }
+    50% { box-shadow: 0 0 0 12px rgba(15, 110, 86, 0); }
+  }
+
+  .webview-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .webview-btn:disabled { background: #b0b0b0; }
+
+  .bank-option {
+    padding: 12px 16px;
+    background: white;
+    border: 0.5px solid rgba(0,0,0,0.12);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer;
+    transition: border-color 0.12s;
+  }
+  .bank-option:hover { border-color: var(--accent); }
+  .bank-letter {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; color: white; font-size: 14px;
+  }
+
+  /* Right panel: channel considerations */
+  .channel-panel h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .channel-item {
+    padding: 14px 0;
+    border-top: 0.5px solid var(--line);
+    font-size: 13px;
+  }
+  .channel-item:first-of-type { border-top: none; }
+  .channel-item strong { display: block; font-size: 13px; color: var(--ink); margin-bottom: 4px; }
+  .channel-item span { color: var(--ink-2); }
+
+  /* Controls */
+  .controls {
+    display: flex; gap: 8px; margin-top: 16px;
+  }
+  .ctrl-btn {
+    flex: 1;
+    padding: 10px;
+    border: 0.5px solid rgba(0,0,0,0.12);
+    background: white;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .ctrl-btn:hover { background: #f5f5f2; }
+  .ctrl-btn.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .ctrl-btn.primary:hover { background: #04342c; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .side-panel { position: static; }
+    .phone-wrap { order: -1; }
+  }
+</style>
+</head>
+<body>
+
+<svg style="display:none">
+  <defs>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-bank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><path d="M5 10v11"/><path d="M19 10v11"/><path d="M9 14v4"/><path d="M15 14v4"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+  <!-- LEFT: Stage narration -->
+  <aside class="side-panel">
+    <h2>SwiftCredit on WhatsApp</h2>
+    <p>An NCR-licensed micro-lender's Business API journey. Same decision engine as the web, adapted for conversation.</p>
+    <ul class="stage-list" id="stages">
+      <li data-stage="greeting"><span class="stage-num"><span class="n">1</span></span>
+        <div><span class="stage-label">Greeting &amp; menu</span><span class="stage-note">User sends "Hi" → main menu</span></div></li>
+      <li data-stage="consent"><span class="stage-num"><span class="n">2</span></span>
+        <div><span class="stage-label">Consent &amp; T&amp;Cs</span><span class="stage-note">POPIA opt-in for bureau + bank pulls</span></div></li>
+      <li data-stage="prequal"><span class="stage-num"><span class="n">3</span></span>
+        <div><span class="stage-label">Pre-qualification</span><span class="stage-note">ID number → soft bureau check</span></div></li>
+      <li data-stage="kyc"><span class="stage-num"><span class="n">4</span></span>
+        <div><span class="stage-label">Identity (selfie)</span><span class="stage-note">One-time link to secure web view</span></div></li>
+      <li data-stage="bank"><span class="stage-num"><span class="n">5</span></span>
+        <div><span class="stage-label">Bank connection</span><span class="stage-note">Open banking consent via link</span></div></li>
+      <li data-stage="afford"><span class="stage-num"><span class="n">6</span></span>
+        <div><span class="stage-label">Affordability summary</span><span class="stage-note">Bot reads back what it found</span></div></li>
+      <li data-stage="offer"><span class="stage-num"><span class="n">7</span></span>
+        <div><span class="stage-label">Offer &amp; acceptance</span><span class="stage-note">List picker for amount &amp; term</span></div></li>
+      <li data-stage="sign"><span class="stage-num"><span class="n">8</span></span>
+        <div><span class="stage-label">Sign with OTP + PIN</span><span class="stage-note">WhatsApp number = verified channel</span></div></li>
+      <li data-stage="payout"><span class="stage-num"><span class="n">9</span></span>
+        <div><span class="stage-label">Payout confirmation</span><span class="stage-note">PayShap → done in &lt;60 sec</span></div></li>
+    </ul>
+    <div class="controls">
+      <button class="ctrl-btn" onclick="restart()">↻ Restart</button>
+      <button class="ctrl-btn primary" onclick="skipAll()">Skip ↠</button>
+    </div>
+  </aside>
+
+  <!-- CENTER: Phone -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="screen">
+        <!-- Header -->
+        <div class="wa-header">
+          <div class="wa-avatar">SC</div>
+          <div>
+            <div class="wa-title">SwiftCredit <span class="wa-verified">✓</span></div>
+            <div class="wa-sub" id="waStatus">online</div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="wa-messages" id="messages">
+          <div class="wa-date-chip">Today</div>
+        </div>
+
+        <!-- Input -->
+        <div class="wa-input">
+          <div class="wa-input-field">Message</div>
+          <div class="wa-input-mic"><svg><use href="#i-mic"/></svg></div>
+        </div>
+
+        <!-- Webview overlay -->
+        <div class="webview" id="webview">
+          <div class="webview-header">
+            <button class="webview-close" onclick="closeWebview()">✕</button>
+            <div>
+              <div class="webview-title" id="wvTitle">Secure verification</div>
+              <div style="font-size: 11px; opacity: 0.85;">verify.swiftcredit.co.za</div>
+            </div>
+          </div>
+          <div class="webview-body" id="wvBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ================ Orchestrator ================
+const messages = document.getElementById('messages');
+const waStatus = document.getElementById('waStatus');
+const stageListEl = document.getElementById('stages');
+let autoplay = true;
+let skipRequested = false;
+let currentStage = null;
+
+function sleep(ms) {
+  return new Promise(res => {
+    const actual = skipRequested ? Math.min(ms, 50) : ms;
+    setTimeout(res, actual);
+  });
+}
+
+function scroll() {
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function setStage(key) {
+  currentStage = key;
+  const items = stageListEl.querySelectorAll('li');
+  let seen = false;
+  items.forEach(li => {
+    li.classList.remove('active', 'done');
+    if (li.dataset.stage === key) {
+      li.classList.add('active'); seen = true;
+    } else if (!seen) {
+      li.classList.add('done');
+    }
+  });
+}
+
+function now() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+async function typing(duration) {
+  waStatus.textContent = 'typing...';
+  const el = document.createElement('div');
+  el.className = 'typing';
+  el.innerHTML = '<span></span><span></span><span></span>';
+  messages.appendChild(el);
+  scroll();
+  await sleep(duration || 900);
+  el.remove();
+  waStatus.textContent = 'online';
+}
+
+async function botSay(html, opts) {
+  opts = opts || {};
+  await typing(opts.typing || 800);
+  const b = document.createElement('div');
+  b.className = 'bubble in';
+  b.innerHTML = html + '<span class="time">' + now() + '</span>';
+  messages.appendChild(b);
+  scroll();
+  await sleep(opts.after || 400);
+}
+
+async function userSay(text) {
+  const b = document.createElement('div');
+  b.className = 'bubble out';
+  b.innerHTML = text + '<span class="time out">' + now() + '</span>';
+  messages.appendChild(b);
+  scroll();
+  await sleep(600);
+}
+
+async function userSelects(label) {
+  // Shown as a user message with an arrow to indicate it came from a button tap
+  await userSay('➤ ' + label);
+}
+
+function waitClick(btn) {
+  return new Promise(res => {
+    if (skipRequested) { res(); return; }
+    btn.addEventListener('click', () => res(), { once: true });
+  });
+}
+
+async function offerButtons(buttons) {
+  // Returns the label of the chosen button; auto-picks first if skipRequested
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'wa-buttons';
+    buttons.forEach(label => {
+      const b = document.createElement('button');
+      b.className = 'wa-btn';
+      b.textContent = label;
+      b.onclick = () => {
+        wrap.remove();
+        resolve(label);
+      };
+      wrap.appendChild(b);
+    });
+    messages.appendChild(wrap);
+    scroll();
+    if (skipRequested) {
+      setTimeout(() => {
+        wrap.remove();
+        resolve(buttons[0]);
+      }, 150);
+    }
+  });
+}
+
+async function offerList(title, options) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'wa-buttons';
+    const head = document.createElement('button');
+    head.className = 'wa-list-btn';
+    head.textContent = title;
+    head.disabled = true;
+    head.style.cursor = 'default';
+    head.style.opacity = '0.6';
+    wrap.appendChild(head);
+    options.forEach(label => {
+      const b = document.createElement('button');
+      b.className = 'wa-btn';
+      b.textContent = label;
+      b.onclick = () => { wrap.remove(); resolve(label); };
+      wrap.appendChild(b);
+    });
+    messages.appendChild(wrap);
+    scroll();
+    if (skipRequested) {
+      setTimeout(() => { wrap.remove(); resolve(options[0]); }, 150);
+    }
+  });
+}
+
+async function linkCard({title, desc, body, cta, onClick}) {
+  return new Promise(resolve => {
+    const card = document.createElement('div');
+    card.className = 'link-card';
+    card.innerHTML =
+      '<div class="link-preview">' +
+        '<div class="link-preview-icon"><svg><use href="#i-lock"/></svg></div>' +
+        '<div class="link-preview-text">' +
+          '<div class="link-title">' + title + '</div>' +
+          '<div class="link-desc">' + desc + '</div>' +
+          '<div class="link-url">verify.swiftcredit.co.za/a/84512</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="link-card-body">' + body + '</div>' +
+      '<div class="link-cta">' + (cta || 'Open secure link') + '</div>' +
+      '<div class="link-card-time">' + now() + '</div>';
+    card.style.cursor = 'pointer';
+    card.onclick = () => {
+      card.style.cursor = 'default';
+      card.onclick = null;
+      hint.remove();
+      onClick(resolve);
+    };
+    messages.appendChild(card);
+
+    // Tap hint arrow below the card
+    const hint = document.createElement('div');
+    hint.className = 'tap-hint';
+    hint.textContent = '↑ Tap the card to open';
+    messages.appendChild(hint);
+
+    scroll();
+    if (skipRequested) {
+      setTimeout(() => { hint.remove(); onClick(resolve); }, 150);
+    }
+  });
+}
+
+function openWebview(title, bodyHtml) {
+  const wv = document.getElementById('webview');
+  document.getElementById('wvTitle').textContent = title;
+  document.getElementById('wvBody').innerHTML = bodyHtml;
+  wv.classList.add('show');
+}
+function closeWebview() {
+  document.getElementById('webview').classList.remove('show');
+}
+window.closeWebview = closeWebview;
+
+// ================ Journey ================
+async function runJourney() {
+  // Stage 1: Greeting
+  setStage('greeting');
+  await sleep(500);
+  await userSay('Hi');
+  await botSay("Hi Brandon! 👋 Welcome to <strong>SwiftCredit</strong>.<br><br>I'm your lending assistant. What would you like to do?");
+  const menuPick = await offerButtons(['Apply for a loan', 'Check my balance', 'Talk to an agent']);
+  await userSelects(menuPick);
+
+  // Stage 2: Consent
+  setStage('consent');
+  await botSay("Great. Before we start, I need your permission to:<br><br>• Run a <strong>soft credit check</strong> (no impact on your score)<br>• Pull your <strong>bank statements</strong> (read-only)<br>• Store your info per <strong>POPIA</strong><br><br>Full T&amp;Cs: swiftcredit.co.za/tcs", { after: 500 });
+  const consent = await offerButtons(['✓ I agree', 'Read T&Cs first']);
+  await userSelects(consent);
+
+  // Stage 3: Pre-qual
+  setStage('prequal');
+  await botSay("Please reply with your <strong>13-digit SA ID number</strong>.");
+  await userSay('9204155234088');
+  await typing(1200);
+  await botSay("Thanks 🔍 Running a quick check...");
+  await typing(1800);
+  await botSay("✓ Credit score: <strong>684</strong> (good)<br>✓ Affordability band: <strong>R5,000 – R8,000</strong><br>✓ You're <strong>pre-qualified</strong>!<br><br>Let's complete the full application.");
+  const next1 = await offerButtons(['Continue', 'Maybe later']);
+  await userSelects(next1);
+
+  // Stage 4: KYC
+  setStage('kyc');
+  await botSay("Next up: a quick selfie for identity verification. We'll match it to Home Affairs records.<br><br>Tap the secure link below — it'll open for one use only and expires in 10 minutes.");
+
+  await linkCard({
+    title: 'Verify your identity',
+    desc: 'Secure selfie capture · takes 30 seconds',
+    body: 'Opens a one-time link on your phone. Expires in 10 minutes.',
+    cta: '🔒 Tap to verify my identity',
+    onClick: (resolve) => {
+      openWebview('Identity verification', `
+        <h3>Take a selfie</h3>
+        <p>Position your face in the circle and hold still. We use liveness detection to prevent fraud.</p>
+        <div class="selfie-circle" id="selfieC"><svg><use href="#i-user"/></svg></div>
+        <button class="webview-btn" id="selfieBtn">Start scan</button>
+      `);
+      const circle = document.getElementById('selfieC');
+      const btn = document.getElementById('selfieBtn');
+      const doScan = () => {
+        circle.classList.add('scanning');
+        btn.disabled = true; btn.textContent = 'Scanning...';
+        setTimeout(() => {
+          circle.classList.remove('scanning');
+          circle.classList.add('done');
+          circle.innerHTML = '<svg><use href="#i-check"/></svg>';
+          btn.textContent = 'Verified ✓';
+          btn.style.background = '#0f6e56';
+          setTimeout(() => {
+            closeWebview();
+            resolve();
+          }, 900);
+        }, 1800);
+      };
+      btn.onclick = doScan;
+      if (skipRequested) setTimeout(doScan, 100);
+    }
+  });
+  await typing(800);
+  await botSay("✅ Identity verified. Fraud score: 0.03 (very low).");
+
+  // Stage 5: Bank
+  setStage('bank');
+  await botSay("Now I need to see your recent bank activity to calculate affordability.<br><br>No PDFs needed — we connect securely through your bank (read-only).");
+
+  await linkCard({
+    title: 'Connect your bank',
+    desc: 'Secure open-banking · read-only access',
+    body: 'You sign in on your bank\'s own page. We never see your password.',
+    cta: '🏦 Tap to connect my bank',
+    onClick: (resolve) => {
+      openWebview('Connect your bank', `
+        <h3>Select your bank</h3>
+        <p>You'll sign in on your bank's own page. We never see your password.</p>
+        <div id="bankList">
+          ${[
+            ['Capitec','#ED1C24'],
+            ['Standard Bank','#0033A0'],
+            ['FNB','#00A9CE'],
+            ['Absa','#EE3124'],
+            ['Nedbank','#006341'],
+            ['TymeBank','#d4a017'],
+          ].map(([b,c]) => `
+            <div class="bank-option" data-bank="${b}">
+              <div class="bank-letter" style="background:${c};">${b[0]}</div>
+              <div style="font-weight:500">${b}</div>
+            </div>`).join('')}
+        </div>
+      `);
+      const handle = (name) => {
+        document.getElementById('wvBody').innerHTML = `
+          <h3>Signing in to ${name}</h3>
+          <p>Redirecting to ${name}'s secure authentication page...</p>
+          <div class="selfie-circle scanning" style="border-style: solid;">
+            <svg style="width:60px;height:60px"><use href="#i-bank"/></svg>
+          </div>
+          <p style="text-align:center">Fetching 3 months of statements...</p>
+        `;
+        setTimeout(() => { closeWebview(); resolve(name); }, 1800);
+      };
+      document.querySelectorAll('.bank-option').forEach(el => {
+        el.onclick = () => handle(el.dataset.bank);
+      });
+      if (skipRequested) setTimeout(() => handle('Capitec'), 100);
+    }
+  });
+
+  await typing(1000);
+  await botSay("✓ Connected. Analysing your last 90 days...");
+  await typing(1600);
+
+  // Stage 6: Affordability
+  setStage('afford');
+  await botSay("Here's what I found 📊<br><br>💰 Income: <strong>R 18,450/month</strong> (Sasol Ltd payroll, consistent)<br>💸 Expenses: <strong>R 11,200/month</strong><br>✅ Available: <strong>R 7,250/month</strong><br><br>✓ Regular salary<br>✓ No unpaid debit orders<br>✓ No gambling signals");
+  const confirm = await offerButtons(['✓ Looks right', 'Something is wrong']);
+  await userSelects(confirm);
+
+  // Stage 7: Offer
+  setStage('offer');
+  await botSay("🎉 <strong>You're approved for up to R 12,000</strong>.<br><br>How much would you like?");
+  const amt = await offerList('Choose loan amount', ['R 3,000', 'R 6,000', 'R 10,000', 'R 12,000 (max)']);
+  await userSelects(amt);
+
+  await botSay("And over how many months?");
+  const term = await offerList('Repayment term', ['3 months', '6 months', '9 months', '12 months']);
+  await userSelects(term);
+
+  await typing(800);
+  await botSay("Your offer:<br><br>💵 Loan: <strong>R 6,000</strong><br>📅 Term: <strong>6 months</strong><br>💳 Instalment: <strong>R 1,180/month</strong><br>💰 Total repayable: <strong>R 7,080</strong><br>📆 First debit: <strong>25 May 2026</strong><br><br>Interest 5%/month, NCA compliant. Full agreement: swiftcredit.co.za/a/84512");
+
+  const accept = await offerButtons(['✓ Accept offer', 'Change amount', 'Cancel']);
+  await userSelects(accept);
+
+  // Stage 8: Sign
+  setStage('sign');
+  await botSay("Final step: sign the agreement.<br><br>Enter your 4-digit SwiftCredit PIN to confirm.<br><i>(First time? We've sent a temporary PIN to your email on file.)</i>");
+  await userSay('••••');
+  await typing(1200);
+  await botSay("🔐 PIN verified.<br>📝 Digital signature captured.<br>📋 Agreement filed with the NCR.");
+
+  // Stage 9: Payout
+  setStage('payout');
+  await typing(1400);
+  await botSay("💸 Sending your money via PayShap...");
+  await typing(1600);
+  await botSay("🎊 <strong>R 6,000 is in your account!</strong><br><br>Reference: SC-2026-084512<br>Paid to: Capitec ···4429<br>Total time: <strong>4 min 22 sec</strong> ⚡<br><br>Your first instalment of R 1,180 is due 25 May 2026. I'll remind you 3 days before.<br><br>Anything else?");
+  await offerButtons(['View my loan', 'Apply for another', 'Done, thanks']);
+}
+
+function restart() {
+  skipRequested = false;
+  messages.innerHTML = '<div class="wa-date-chip">Today</div>';
+  closeWebview();
+  stageListEl.querySelectorAll('li').forEach(li => li.classList.remove('active','done'));
+  runJourney();
+}
+function skipAll() {
+  skipRequested = true;
+}
+window.restart = restart;
+window.skipAll = skipAll;
+
+runJourney();
+</script>
+</body>
+</html>
